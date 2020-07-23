@@ -107,12 +107,15 @@ extension WeatherFetcher: WeatherFetchable {
     return forecast(with: makeCurrentDayForecastComponents(withCity: city))
   }
 
+  // 「where T: Decodable」はTに関する制約の追加を示す（今回はTがDecodableでなくてはならないことを示している）
   private func forecast<T>(
     with components: URLComponents
   ) -> AnyPublisher<T, WeatherError> where T: Decodable {
     // 1
     guard let url = components.url else {
       let error = WeatherError.network(description: "Couldn't create URL")
+      // AnyPublisher型を削除（このままだと他のPublisherと型が合わず処理を組み合わせることが難しいため）
+      // https://qiita.com/shiz/items/5efac86479db77a52ccc
       return Fail(error: error).eraseToAnyPublisher()
     }
 
