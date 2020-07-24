@@ -119,13 +119,14 @@ extension WeatherFetcher: WeatherFetchable {
       return Fail(error: error).eraseToAnyPublisher()
     }
 
-    // 2
+    // 新しいURLSessionメソッドdataTaskPublisher(for:)を使用してデータを取得します。このメソッドはURLRequestのインスタンスを受け取り、タプル（Data、URLResponse）またはURLErrorを返します。
     return session.dataTaskPublisher(for: URLRequest(url: url))
       // 3
       .mapError { error in
         .network(description: error.localizedDescription)
       }
       // 4
+      // TODO:.max(1)の理由→実際にAPIの挙動みて確認
       .flatMap(maxPublishers: .max(1)) { pair in
         decode(pair.data)
       }
