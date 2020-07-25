@@ -29,8 +29,10 @@
 import SwiftUI
 import Combine
 
+// ObservableObject:WeeklyWeatherViewModelのプロパティをバインディングとして使用できることを意味する
 class WeeklyWeatherViewModel: ObservableObject {
 
+  // @Published修飾子でプロパティを監視
   @Published var city: String = ""
   @Published var todaysWeatherEmoji: String = ""
   @Published var dataSource: [DailyWeatherRowViewModel] = []
