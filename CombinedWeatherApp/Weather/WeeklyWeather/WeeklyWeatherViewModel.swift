@@ -31,36 +31,39 @@ import Combine
 
 // ObservableObject:WeeklyWeatherViewModelのプロパティをバインディングとして使用できることを意味する
 class WeeklyWeatherViewModel: ObservableObject {
-
+  
   // @Published修飾子でプロパティを監視
   @Published var city: String = ""
   @Published var todaysWeatherEmoji: String = ""
   @Published var dataSource: [DailyWeatherRowViewModel] = []
-
+  
   private let weatherFetcher: WeatherFetchable
   private var disposables = [AnyCancellable]()
-
+  
   init(
     weatherFetcher: WeatherFetchable,
     scheduler: DispatchQueue = DispatchQueue(label: "WeatherViewModel")
   ) {
     self.weatherFetcher = weatherFetcher
-
+    
+    // https://developer.apple.com/documentation/combine/passthroughsubject
     let _fetchWeather = PassthroughSubject<String, Never>()
-
+    
     $city
-    .filter { !$0.isEmpty }
-    .debounce(for: .seconds(0.5), scheduler: scheduler)
-    .sink(receiveValue: { _fetchWeather.send($0) })
-    .store(in: &disposables)
-
+      // filter:cityが空でないことを返す（空でないものをフィルターする）=空チェック？
+      .filter { !$0.isEmpty }
+      // debounceは、前回のイベント発生後から一定時間内に同じイベントが発生するごとに処理の実行を一定時間遅延させ、一定時間イベントが発生しなければ処理を実行するという挙動。https://qiita.com/marty-suzuki/items/496f211e22cad1f8de19
+      .debounce(for: .seconds(0.5), scheduler: scheduler)
+      .sink(receiveValue: { _fetchWeather.send($0) })
+      .store(in: &disposables)
+    
     _fetchWeather
-    .map { city -> AnyPublisher<Result<[DailyWeatherRowViewModel], WeatherError>, Never> in
-      weatherFetcher.weeklyWeatherForecast(forCity: city)
-        .prefix(1)
-        .map { Result.success(Array.removeDuplicates($0.list.map(DailyWeatherRowViewModel.init)))}
-        .catch { Just(Result.failure($0)) }
-        .eraseToAnyPublisher()
+      .map { city -> AnyPublisher<Result<[DailyWeatherRowViewModel], WeatherError>, Never> in
+        weatherFetcher.weeklyWeatherForecast(forCity: city)
+          .prefix(1)
+          .map { Result.success(Array.removeDuplicates($0.list.map(DailyWeatherRowViewModel.init)))}
+          .catch { Just(Result.failure($0)) }
+          .eraseToAnyPublisher()
     }
     .switchToLatest()
     .receive(on: DispatchQueue.main)
@@ -70,13 +73,16 @@ class WeeklyWeatherViewModel: ObservableObject {
       case let .success(forecast):
         self.dataSource = forecast
         self.todaysWeatherEmoji = forecast.first?.emoji ?? ""
-
+        
       case .failure:
         self.dataSource = []
         self.todaysWeatherEmoji = ""
       }
     })
-    .store(in: &disposables)
+      // disposablesは、リクエストへの参照のコレクションと考える。 これらの参照を保持しないと、送信するネットワークリクエストは保持されず、サーバーからの応答を取得できなくなる。
+      .store(in: &disposables)
+    
+    // ここまでがinit
   }
 }
 
