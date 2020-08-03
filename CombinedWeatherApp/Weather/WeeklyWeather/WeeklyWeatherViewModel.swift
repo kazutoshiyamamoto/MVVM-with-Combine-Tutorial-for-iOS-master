@@ -54,32 +54,51 @@ class WeeklyWeatherViewModel: ObservableObject {
       .filter { !$0.isEmpty }
       // debounceは、前回のイベント発生後から一定時間内に同じイベントが発生するごとに処理の実行を一定時間遅延させ、一定時間イベントが発生しなければ処理を実行するという挙動。https://qiita.com/marty-suzuki/items/496f211e22cad1f8de19
       .debounce(for: .seconds(0.5), scheduler: scheduler)
+      // サブスクライバーに値を送信
       .sink(receiveValue: { _fetchWeather.send($0) })
+      // disposablesは、リクエストへの参照のコレクションと考える。 これらの参照を保持しないと、送信するネットワークリクエストは保持されず、サーバーからの応答を取得できなくなる。
       .store(in: &disposables)
     
     _fetchWeather
       .map { city -> AnyPublisher<Result<[DailyWeatherRowViewModel], WeatherError>, Never> in
+        // 週間天気を取得
         weatherFetcher.weeklyWeatherForecast(forCity: city)
           .prefix(1)
-          .map { Result.success(Array.removeDuplicates($0.list.map(DailyWeatherRowViewModel.init)))}
+          // 成功時
+          // 提供されたクロージャーで上流パブリッシャーからのすべての要素を変換
+          // https://developer.apple.com/documentation/combine/passthroughsubject/map(_:)-77nj3
+          .map {
+            Result.success(
+              Array.removeDuplicates(
+                $0.list.map(DailyWeatherRowViewModel.init)
+              )
+            )
+        }
+          // 失敗時
+          // https://developer.apple.com/documentation/combine/publishers/catch
           .catch { Just(Result.failure($0)) }
           .eraseToAnyPublisher()
     }
-    .switchToLatest()
-    .receive(on: DispatchQueue.main)
-    .sink(receiveValue: { [weak self] result in
-      guard let self = self else { return }
-      switch result {
-      case let .success(forecast):
-        self.dataSource = forecast
-        self.todaysWeatherEmoji = forecast.first?.emoji ?? ""
-        
-      case .failure:
-        self.dataSource = []
-        self.todaysWeatherEmoji = ""
-      }
-    })
-      // disposablesは、リクエストへの参照のコレクションと考える。 これらの参照を保持しないと、送信するネットワークリクエストは保持されず、サーバーからの応答を取得できなくなる。
+      // 複数の上流パブリッシャーからのイベントストリームをフラット化して、それらが単一のイベントストリームからのものであるかのように見せる
+      // https://developer.apple.com/documentation/combine/future/switchtolatest()-2mp1
+      .switchToLatest()
+      // receiveが定義された後の処理をメインスレッドで実行する
+      // https://qiita.com/shiz/items/9dc8e9a96f399b6c7246
+      .receive(on: DispatchQueue.main)
+      // sink:Publisherから受け取った値を引数にしたクロージャを受け取る
+      // https://qiita.com/shiz/items/5efac86479db77a52ccc
+      .sink(receiveValue: { [weak self] result in
+        guard let self = self else { return }
+        switch result {
+        case let .success(forecast):
+          self.dataSource = forecast
+          self.todaysWeatherEmoji = forecast.first?.emoji ?? ""
+          
+        case .failure:
+          self.dataSource = []
+          self.todaysWeatherEmoji = ""
+        }
+      })
       .store(in: &disposables)
     
     // ここまでがinit
