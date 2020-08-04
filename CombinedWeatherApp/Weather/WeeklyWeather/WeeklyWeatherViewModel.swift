@@ -53,12 +53,15 @@ class WeeklyWeatherViewModel: ObservableObject {
       // filter:cityが空でないことを返す（空でないものをフィルターする）=空チェック？
       .filter { !$0.isEmpty }
       // debounceは、前回のイベント発生後から一定時間内に同じイベントが発生するごとに処理の実行を一定時間遅延させ、一定時間イベントが発生しなければ処理を実行するという挙動。https://qiita.com/marty-suzuki/items/496f211e22cad1f8de19
+      // TextFieldでの文字入力の時間を考慮？（不必要にリクエストさせない対策？）
       .debounce(for: .seconds(0.5), scheduler: scheduler)
-      // サブスクライバーに値を送信
+      // cityの値を購読（View側でTextFieldに文字が入力されると発火するようになる？）
+      // _fetchWeather.send($0):cityの値が変化したことを通知されるとその値をサブスクライバー（_fetchWeather？）に送信する？
       .sink(receiveValue: { _fetchWeather.send($0) })
       // disposablesは、リクエストへの参照のコレクションと考える。 これらの参照を保持しないと、送信するネットワークリクエストは保持されず、サーバーからの応答を取得できなくなる。
       .store(in: &disposables)
     
+    // cityは引数
     _fetchWeather
       .map { city -> AnyPublisher<Result<[DailyWeatherRowViewModel], WeatherError>, Never> in
         // 週間天気を取得
@@ -76,6 +79,7 @@ class WeeklyWeatherViewModel: ObservableObject {
         }
           // 失敗時
           // https://developer.apple.com/documentation/combine/publishers/catch
+          // Justはエラーを発行できないが、catchを設定することでデフォルトメッセージを返せる（エラーを吐く役割として使える）
           .catch { Just(Result.failure($0)) }
           .eraseToAnyPublisher()
     }
