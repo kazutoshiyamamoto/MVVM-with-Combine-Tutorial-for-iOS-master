@@ -47,6 +47,8 @@ class WeeklyWeatherViewModel: ObservableObject {
     self.weatherFetcher = weatherFetcher
     
     // https://developer.apple.com/documentation/combine/passthroughsubject
+    // PassthroughSubject:SubjectsはPublisherとSubscriberの間のような存在で複数のSubscriberに値を出力できる。PassthroughSubjectはSubjectsの一種で値を保持せずに来たものをそのまま出力する。
+    // https://qiita.com/shiz/items/5efac86479db77a52ccc
     let _fetchWeather = PassthroughSubject<String, Never>()
     
     $city
